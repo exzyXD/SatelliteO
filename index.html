@@ -41,6 +41,7 @@
         /* Prevent pull-to-refresh on mobile */
         body {
             overscroll-behavior-y: contain;
+            touch-action: none; /* Helps with custom gestures */
         }
     </style>
 </head>
@@ -50,7 +51,7 @@
 
     <!-- type="text/babel" with data-type="module" allows using imports directly -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
+        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
         
         // Import icons specifically from lucide-react via esm.sh
@@ -58,10 +59,11 @@
             Wifi, Plane, Bluetooth, Share2, Music, Play, SkipForward, SkipBack, 
             Sun, Volume2, Satellite, Globe, Activity, ArrowUp, ArrowDown, X, 
             Smartphone, Signal, Battery, Lock, Moon, Flashlight, Disc, Cast, 
-            RotateCw, Focus, Loader2 
+            RotateCw, Focus, Loader2, ChevronUp 
         } from 'https://esm.sh/lucide-react@0.292.0';
 
-        const SatelliteApp = () => {
+        // --- INTERNAL COMPONENT: The Control Center Content ---
+        const ControlCenterContent = ({ onClose }) => {
             const [time, setTime] = useState(new Date());
             
             // State for toggles
@@ -78,14 +80,13 @@
             
             // Statuses: 'disconnected' -> 'searching' -> 'ready' (bad net) -> 'connecting' (loading) -> 'connected' (good net)
             const [satStatus, setSatStatus] = useState('disconnected'); 
-            const [connectionStep, setConnectionStep] = useState(''); // Text for connection steps
+            const [connectionStep, setConnectionStep] = useState(''); 
             
             const [signalStrength, setSignalStrength] = useState(0);
             const [downloadSpeed, setDownloadSpeed] = useState(0);
             const [uploadSpeed, setUploadSpeed] = useState(0);
             const [ping, setPing] = useState(0);
             
-            // Brightness and Volume state for sliders
             const [brightness, setBrightness] = useState(50);
             const [volume, setVolume] = useState(75);
 
@@ -94,437 +95,228 @@
                 return () => clearInterval(timer);
             }, []);
 
-            // 1. Simulation of INITIAL SEARCH
+            // Simulation Logic (same as before)
             useEffect(() => {
                 let interval;
                 if (satelliteViewOpen && satStatus === 'searching') {
-                let progress = 0;
-                setDownloadSpeed(0);
-                setUploadSpeed(0);
-                setPing(0);
-                
-                interval = setInterval(() => {
-                    progress += 2; 
-                    setSignalStrength(prev => Math.min(prev + 2, 40)); 
-                    if (progress >= 100) {
-                    setSatStatus('ready');
-                    clearInterval(interval);
-                    }
-                }, 50);
+                    let progress = 0;
+                    setDownloadSpeed(0); setUploadSpeed(0); setPing(0);
+                    interval = setInterval(() => {
+                        progress += 2; 
+                        setSignalStrength(prev => Math.min(prev + 2, 40)); 
+                        if (progress >= 100) { setSatStatus('ready'); clearInterval(interval); }
+                    }, 50);
                 } else if (!satelliteViewOpen) {
-                setSatStatus('disconnected');
-                setSignalStrength(0);
-                setDownloadSpeed(0);
-                setUploadSpeed(0);
-                setPing(0);
-                setConnectionStep('');
+                    setSatStatus('disconnected'); setSignalStrength(0);
+                    setDownloadSpeed(0); setUploadSpeed(0); setPing(0); setConnectionStep('');
                 }
                 return () => clearInterval(interval);
             }, [satelliteViewOpen, satStatus]);
 
-            // 2. Simulation of CONNECTING PROCESS
             useEffect(() => {
                 if (satStatus === 'connecting') {
-                // Step 1: Authenticating
-                setConnectionStep("Authenticating Device...");
-                
-                const step2 = setTimeout(() => {
-                    setConnectionStep("Aligning Beam...");
-                }, 1000);
-
-                const step3 = setTimeout(() => {
-                    setConnectionStep("Registering Network...");
-                }, 2200);
-
-                const finish = setTimeout(() => {
-                    setSatStatus('connected');
-                    setConnectionStep("");
-                }, 3500);
-
-                return () => {
-                    clearTimeout(step2);
-                    clearTimeout(step3);
-                    clearTimeout(finish);
-                };
+                    setConnectionStep("Authenticating Device...");
+                    const s2 = setTimeout(() => setConnectionStep("Aligning Beam..."), 1000);
+                    const s3 = setTimeout(() => setConnectionStep("Registering Network..."), 2200);
+                    const fin = setTimeout(() => { setSatStatus('connected'); setConnectionStep(""); }, 3500);
+                    return () => { clearTimeout(s2); clearTimeout(s3); clearTimeout(fin); };
                 }
             }, [satStatus]);
 
-            // 3. Simulation of NETWORK TRAFFIC
             useEffect(() => {
                 let interval;
-
                 if (satStatus === 'ready') {
-                // Bad Internet Simulation
-                setPing(prev => prev === 0 ? 450 : prev + (Math.random() * 20 - 10)); 
-                setDownloadSpeed(prev => Math.max(0.5, 2 + (Math.random() * 2 - 1))); 
-                setUploadSpeed(prev => Math.max(0.1, 0.5 + (Math.random() * 0.2 - 0.1))); 
-                
-                interval = setInterval(() => {
-                    setPing(p => Math.min(600, Math.max(300, p + (Math.random() * 40 - 20))));
-                    setDownloadSpeed(s => Math.max(0, 2 + (Math.random() * 3 - 1.5)));
-                }, 1000);
-                } 
-                else if (satStatus === 'connected') {
-                // Good Internet Simulation (Acceleration)
-                const targetSpeed = 800;
-                const targetPing = 20;
-                
-                interval = setInterval(() => {
-                    setDownloadSpeed(prev => {
-                    if (prev < targetSpeed) {
-                        return prev + (targetSpeed - prev) * 0.05 + Math.random() * 10;
-                    }
-                    return targetSpeed + (Math.random() * 40 - 20);
-                    });
-
-                    setUploadSpeed(prev => {
-                        if (prev < 150) return prev + 2;
-                        return 150 + (Math.random() * 10 - 5);
-                    });
-
-                    setPing(prev => {
-                        if (prev > targetPing) {
-                            return prev - (prev - targetPing) * 0.1;
-                        }
-                        return targetPing + (Math.random() * 10 - 5);
-                    });
-
-                    setSignalStrength(prev => Math.min(100, prev + 1));
-
-                }, 50); 
+                    setPing(prev => prev === 0 ? 450 : prev + (Math.random() * 20 - 10)); 
+                    setDownloadSpeed(prev => Math.max(0.5, 2 + (Math.random() * 2 - 1))); 
+                    setUploadSpeed(prev => Math.max(0.1, 0.5 + (Math.random() * 0.2 - 0.1))); 
+                    interval = setInterval(() => {
+                        setPing(p => Math.min(600, Math.max(300, p + (Math.random() * 40 - 20))));
+                        setDownloadSpeed(s => Math.max(0, 2 + (Math.random() * 3 - 1.5)));
+                    }, 1000);
+                } else if (satStatus === 'connected') {
+                    const targetSpeed = 800; const targetPing = 20;
+                    interval = setInterval(() => {
+                        setDownloadSpeed(prev => prev < targetSpeed ? prev + (targetSpeed - prev) * 0.05 + Math.random() * 10 : targetSpeed + (Math.random() * 40 - 20));
+                        setUploadSpeed(prev => prev < 150 ? prev + 2 : 150 + (Math.random() * 10 - 5));
+                        setPing(prev => prev > targetPing ? prev - (prev - targetPing) * 0.1 : targetPing + (Math.random() * 10 - 5));
+                        setSignalStrength(prev => Math.min(100, prev + 1));
+                    }, 50); 
                 }
-
                 return () => clearInterval(interval);
             }, [satStatus]);
 
-            const handleSatelliteClick = () => {
-                setSatelliteViewOpen(true);
-                setSatStatus('searching');
-            };
-
-            const handleConnectClick = () => {
-                if (satStatus === 'ready') {
-                    setSatStatus('connecting'); 
-                }
-            };
+            const handleConnectClick = () => { if (satStatus === 'ready') setSatStatus('connecting'); };
 
             return (
-                <div className="relative w-full h-[100dvh] bg-neutral-900/40 backdrop-blur-3xl overflow-hidden text-white font-sans select-none">
-                
-                <div className="h-full w-full flex flex-col relative bg-transparent">
-
+                <div className="w-full h-full flex flex-col relative">
                     {/* --- MAIN CONTROL CENTER GRID --- */}
-                    <div className={`flex-1 p-4 pt-8 flex flex-col gap-4 transition-transform duration-500 overflow-y-auto no-scrollbar ${satelliteViewOpen ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}>
-                        
-                        {/* ROW 1: Connectivity & Media */}
+                    <div className={`flex-1 p-4 pt-12 flex flex-col gap-4 transition-transform duration-500 overflow-y-auto no-scrollbar ${satelliteViewOpen ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}>
+                        {/* ROW 1 */}
                         <div className="grid grid-cols-4 gap-4 h-40 shrink-0">
-                        <div className="col-span-2 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] p-3 grid grid-cols-2 gap-3 shadow-lg border border-white/5">
-                            <SmallToggle 
-                            active={airplaneMode} 
-                            onClick={() => setAirplaneMode(!airplaneMode)} 
-                            icon={<Plane size={20} className="rotate-45" />} 
-                            activeColor="bg-orange-500"
-                            inactiveColor="bg-white/10"
-                            />
-                            <SmallToggle 
-                            active={false} 
-                            onClick={() => {}} 
-                            icon={<Signal size={20} />} 
-                            activeColor="bg-green-500"
-                            inactiveColor="bg-white/10"
-                            />
-                            <SmallToggle 
-                            active={wifi} 
-                            onClick={() => setWifi(!wifi)} 
-                            icon={<Wifi size={20} />} 
-                            activeColor="bg-blue-500"
-                            inactiveColor="bg-white/10"
-                            />
-                            <SmallToggle 
-                            active={bluetooth} 
-                            onClick={() => setBluetooth(!bluetooth)} 
-                            icon={<Bluetooth size={20} />} 
-                            activeColor="bg-blue-500"
-                            inactiveColor="bg-white/10"
-                            />
-                        </div>
-
-                        <div className="col-span-2 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] p-4 flex flex-col justify-between shadow-lg border border-white/5 relative overflow-hidden">
-                            <div className="absolute top-4 right-4 text-neutral-500">
-                                <Signal size={16} className="animate-pulse opacity-50"/>
+                            <div className="col-span-2 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] p-3 grid grid-cols-2 gap-3 shadow-lg border border-white/5">
+                                <SmallToggle active={airplaneMode} onClick={() => setAirplaneMode(!airplaneMode)} icon={<Plane size={20} className="rotate-45" />} activeColor="bg-orange-500" inactiveColor="bg-white/10" />
+                                <SmallToggle active={false} onClick={() => {}} icon={<Signal size={20} />} activeColor="bg-green-500" inactiveColor="bg-white/10" />
+                                <SmallToggle active={wifi} onClick={() => setWifi(!wifi)} icon={<Wifi size={20} />} activeColor="bg-blue-500" inactiveColor="bg-white/10" />
+                                <SmallToggle active={bluetooth} onClick={() => setBluetooth(!bluetooth)} icon={<Bluetooth size={20} />} activeColor="bg-blue-500" inactiveColor="bg-white/10" />
                             </div>
-                            <div className="mt-2 text-center w-full">
-                            <div className="text-sm font-medium text-neutral-200">Not Playing</div>
-                            <div className="text-[10px] text-neutral-500">Music</div>
-                            </div>
-                            <div className="flex justify-between items-center px-1 text-neutral-400 mt-2">
-                            <SkipBack size={24} fill="currentColor" />
-                            <Play size={28} fill="currentColor" className="text-white" />
-                            <SkipForward size={24} fill="currentColor" />
+                            <div className="col-span-2 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] p-4 flex flex-col justify-between shadow-lg border border-white/5 relative overflow-hidden">
+                                <div className="absolute top-4 right-4 text-neutral-500"><Signal size={16} className="animate-pulse opacity-50"/></div>
+                                <div className="mt-2 text-center w-full"><div className="text-sm font-medium text-neutral-200">Not Playing</div><div className="text-[10px] text-neutral-500">Music</div></div>
+                                <div className="flex justify-between items-center px-1 text-neutral-400 mt-2">
+                                    <SkipBack size={24} fill="currentColor" />
+                                    <Play size={28} fill="currentColor" className="text-white" />
+                                    <SkipForward size={24} fill="currentColor" />
+                                </div>
                             </div>
                         </div>
-                        </div>
-
-                        {/* ROW 2: Lock, Mirror, Sliders */}
+                        {/* ROW 2 */}
                         <div className="grid grid-cols-4 gap-4 h-40 shrink-0">
                             <div className="col-span-2 grid grid-cols-2 gap-4 h-full">
-                                <button 
-                                    onClick={() => setRotationLock(!rotationLock)}
-                                    className={`w-full h-18 rounded-[28px] flex items-center justify-center transition-all duration-300 shadow-lg ${rotationLock ? 'bg-white text-red-500' : 'bg-neutral-800/60 text-white border border-white/5'}`}
-                                >
-                                    <RotateCw size={26} strokeWidth={2.5} className={rotationLock ? '' : 'opacity-80'} />
-                                </button>
-                                <button className="w-full h-18 rounded-[28px] bg-neutral-800/60 backdrop-blur-2xl flex items-center justify-center text-white shadow-lg border border-white/5 active:bg-neutral-700">
-                                    <Cast size={24} />
-                                </button>
-                                <button className="col-span-2 h-[72px] rounded-[28px] bg-neutral-800/60 backdrop-blur-2xl flex items-center px-4 gap-3 shadow-lg border border-white/5 active:bg-neutral-700 mt-auto">
-                                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 shrink-0">
-                                        <Moon size={16} fill="currentColor" />
-                                    </div>
-                                    <div className="flex flex-col text-left">
-                                        <span className="text-sm font-semibold">Focus</span>
-                                    </div>
-                                </button>
+                                <button onClick={() => setRotationLock(!rotationLock)} className={`w-full h-18 rounded-[28px] flex items-center justify-center transition-all duration-300 shadow-lg ${rotationLock ? 'bg-white text-red-500' : 'bg-neutral-800/60 text-white border border-white/5'}`}><RotateCw size={26} strokeWidth={2.5} className={rotationLock ? '' : 'opacity-80'} /></button>
+                                <button className="w-full h-18 rounded-[28px] bg-neutral-800/60 backdrop-blur-2xl flex items-center justify-center text-white shadow-lg border border-white/5 active:bg-neutral-700"><Cast size={24} /></button>
+                                <button className="col-span-2 h-[72px] rounded-[28px] bg-neutral-800/60 backdrop-blur-2xl flex items-center px-4 gap-3 shadow-lg border border-white/5 active:bg-neutral-700 mt-auto"><div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 shrink-0"><Moon size={16} fill="currentColor" /></div><div className="flex flex-col text-left"><span className="text-sm font-semibold">Focus</span></div></button>
                             </div>
                             <div className="col-span-1 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] relative flex flex-col justify-end p-0 overflow-hidden shadow-lg border border-white/5 group">
-                                <div 
-                                    className="absolute bottom-0 left-0 right-0 bg-white transition-all duration-100"
-                                    style={{ height: `${brightness}%` }}
-                                ></div>
-                                <div className="absolute inset-0 flex flex-col items-center justify-end pb-5 pointer-events-none">
-                                    <Sun size={28} className={`transition-colors duration-300 ${brightness > 50 ? 'text-neutral-500' : 'text-white'}`} />
-                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-white transition-all duration-100" style={{ height: `${brightness}%` }}></div>
+                                <div className="absolute inset-0 flex flex-col items-center justify-end pb-5 pointer-events-none"><Sun size={28} className={`transition-colors duration-300 ${brightness > 50 ? 'text-neutral-500' : 'text-white'}`} /></div>
                                 <input type="range" min="0" max="100" value={brightness} onChange={(e) => setBrightness(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                             </div>
                             <div className="col-span-1 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] relative flex flex-col justify-end p-0 overflow-hidden shadow-lg border border-white/5 group">
-                                <div 
-                                    className="absolute bottom-0 left-0 right-0 bg-white transition-all duration-100"
-                                    style={{ height: `${volume}%` }}
-                                ></div>
-                                <div className="absolute inset-0 flex flex-col items-center justify-end pb-5 pointer-events-none">
-                                    <Volume2 size={28} className={`transition-colors duration-300 ${volume > 50 ? 'text-neutral-500' : 'text-white'}`} />
-                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-white transition-all duration-100" style={{ height: `${volume}%` }}></div>
+                                <div className="absolute inset-0 flex flex-col items-center justify-end pb-5 pointer-events-none"><Volume2 size={28} className={`transition-colors duration-300 ${volume > 50 ? 'text-neutral-500' : 'text-white'}`} /></div>
                                 <input type="range" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                             </div>
                         </div>
-
-                        {/* ROW 3: Bottom Toggles + SATELLITE */}
+                        {/* ROW 3 */}
                         <div className="grid grid-cols-4 gap-4 h-18 shrink-0">
-                            <button 
-                                onClick={() => setFlashlight(!flashlight)}
-                                className={`col-span-1 h-[72px] rounded-[36px] flex items-center justify-center transition-all duration-300 shadow-lg ${flashlight ? 'bg-white text-black' : 'bg-neutral-800/60 text-white border border-white/5'}`}
-                            >
-                                <Flashlight size={24} fill={flashlight ? "currentColor" : "none"} />
-                            </button>
-                            <button 
-                                onClick={() => setRecording(!recording)}
-                                className={`col-span-1 h-[72px] rounded-[36px] flex items-center justify-center transition-all duration-300 shadow-lg ${recording ? 'bg-white text-red-500' : 'bg-neutral-800/60 text-white border border-white/5'}`}
-                            >
-                                <Disc size={24} className={recording ? "animate-pulse" : ""} />
-                            </button>
-                            <button 
-                                onClick={handleSatelliteClick}
-                                className={`col-span-2 h-[72px] rounded-[36px] flex items-center justify-center gap-3 transition-all duration-300 shadow-lg border border-white/5 active:scale-95 ${satStatus === 'connected' ? 'bg-white text-blue-600' : 'bg-neutral-800/60 text-white'}`}
-                            >
-                                <Satellite size={24} className={satStatus === 'connected' ? 'animate-pulse' : ''} />
-                                <span className="font-semibold text-sm">Satellite</span>
-                            </button>
+                            <button onClick={() => setFlashlight(!flashlight)} className={`col-span-1 h-[72px] rounded-[36px] flex items-center justify-center transition-all duration-300 shadow-lg ${flashlight ? 'bg-white text-black' : 'bg-neutral-800/60 text-white border border-white/5'}`}><Flashlight size={24} fill={flashlight ? "currentColor" : "none"} /></button>
+                            <button onClick={() => setRecording(!recording)} className={`col-span-1 h-[72px] rounded-[36px] flex items-center justify-center transition-all duration-300 shadow-lg ${recording ? 'bg-white text-red-500' : 'bg-neutral-800/60 text-white border border-white/5'}`}><Disc size={24} className={recording ? "animate-pulse" : ""} /></button>
+                            <button onClick={() => { setSatelliteViewOpen(true); setSatStatus('searching'); }} className={`col-span-2 h-[72px] rounded-[36px] flex items-center justify-center gap-3 transition-all duration-300 shadow-lg border border-white/5 active:scale-95 ${satStatus === 'connected' ? 'bg-white text-blue-600' : 'bg-neutral-800/60 text-white'}`}><Satellite size={24} className={satStatus === 'connected' ? 'animate-pulse' : ''} /><span className="font-semibold text-sm">Satellite</span></button>
                         </div>
                     </div>
 
                     {/* --- SATELLITE INTERFACE OVERLAY --- */}
-                    <div className={`absolute inset-0 bg-black/95 backdrop-blur-3xl z-40 transition-all duration-500 flex flex-col ${satelliteViewOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}>
-                        
-                        {/* Header */}
-                        <div className="pt-14 px-6 flex justify-end">
-                        <button 
-                            onClick={() => setSatelliteViewOpen(false)}
-                            className="w-9 h-9 bg-neutral-800 rounded-full flex items-center justify-center text-neutral-400 hover:text-white active:scale-90 transition-all"
-                        >
-                            <X size={18} />
-                        </button>
-                        </div>
-
+                    <div className={`absolute inset-0 bg-black/95 backdrop-blur-3xl z-50 transition-all duration-500 flex flex-col ${satelliteViewOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}>
+                        <div className="pt-14 px-6 flex justify-end"><button onClick={() => setSatelliteViewOpen(false)} className="w-9 h-9 bg-neutral-800 rounded-full flex items-center justify-center text-neutral-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button></div>
                         <div className="flex-1 flex flex-col items-center justify-center -mt-10 px-6">
-                            
-                            <h2 className="text-2xl font-bold mb-2 tracking-tight text-white min-h-[32px] transition-all duration-300">
-                                {satStatus === 'searching' && "Searching Signal"}
-                                {satStatus === 'ready' && "Weak Signal Found"}
-                                {satStatus === 'connecting' && connectionStep}
-                                {satStatus === 'connected' && "High Speed Link"}
-                            </h2>
-                            <p className="text-neutral-400 text-sm mb-12 text-center max-w-[250px] leading-relaxed h-10 transition-opacity duration-300">
-                            {satStatus === 'searching' && "Calibrating antenna..."}
-                            {satStatus === 'ready' && "Connection unstable. Optimization required."}
-                            {satStatus === 'connecting' && "Please wait while we establish a secure connection."}
-                            {satStatus === 'connected' && "Stable connection established. Maximum throughput."}
-                            </p>
-
-                            {/* RADAR / MAP AREA */}
+                            <h2 className="text-2xl font-bold mb-2 tracking-tight text-white min-h-[32px] transition-all duration-300">{satStatus === 'searching' && "Searching Signal"}{satStatus === 'ready' && "Weak Signal Found"}{satStatus === 'connecting' && connectionStep}{satStatus === 'connected' && "High Speed Link"}</h2>
+                            <p className="text-neutral-400 text-sm mb-12 text-center max-w-[250px] leading-relaxed h-10 transition-opacity duration-300">{satStatus === 'searching' && "Calibrating antenna..."}{satStatus === 'ready' && "Connection unstable. Optimization required."}{satStatus === 'connecting' && "Please wait while we establish a secure connection."}{satStatus === 'connected' && "Stable connection established. Maximum throughput."}</p>
                             <div className="relative w-72 h-72 flex items-center justify-center mb-12">
-                            
-                            {/* Background Orbits */}
-                            <div className="absolute inset-0 border border-white/5 rounded-full" />
-                            <div className="absolute inset-12 border border-white/5 rounded-full" />
-                            <div className="absolute inset-24 border border-white/5 rounded-full" />
-                            
-                            {/* Connection Lines & Beams (SVG Overlay) */}
-                            {satStatus === 'connected' && (
-                                    <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-visible">
-                                        <line 
-                                            x1="50%" y1="50%" 
-                                            x2="50%" y2="8%" 
-                                            stroke="#4ade80" 
-                                            strokeWidth="2" 
-                                            strokeDasharray="6,4" 
-                                            strokeOpacity="0.6"
-                                            className="animate-dash" 
-                                        />
-                                        <line 
-                                            x1="50%" y1="50%" 
-                                            x2="85%" y2="82%" 
-                                            stroke="#4ade80" 
-                                            strokeWidth="2" 
-                                            strokeDasharray="6,4" 
-                                            strokeOpacity="0.6"
-                                            className="animate-dash" 
-                                        />
-                                    </svg>
-                            )}
-
-                            {/* Rotating Radar Sweep */}
-                            <div className={`absolute w-full h-full rounded-full bg-gradient-to-t from-transparent via-transparent ${
-                                satStatus === 'connected' ? 'opacity-0' : 
-                                satStatus === 'ready' ? 'to-orange-500/20' : 
-                                satStatus === 'connecting' ? 'to-white/30 duration-[0.5s]' :
-                                'to-blue-500/20'
-                            } ${satStatus === 'connecting' ? 'animate-spin duration-700' : 'animate-spin'} transition-all`} style={{clipPath: 'polygon(50% 50%, 0 0, 100% 0)'}}></div>
-
-                            {/* Expanding Ripple Effect */}
-                            {satStatus === 'connected' && (
-                                <div className="absolute inset-0 rounded-full border border-green-500/30 animate-ripple"></div>
-                            )}
-                            {satStatus === 'connected' && (
-                                <div className="absolute inset-12 rounded-full border border-green-500/30 animate-ripple" style={{animationDelay: '0.5s'}}></div>
-                            )}
-
-                            {/* Center Planet/Dish */}
-                            <div className={`w-24 h-24 bg-neutral-900 rounded-full flex items-center justify-center shadow-[0_0_60px_rgba(59,130,246,0.2)] z-10 border relative transition-all duration-500 ${
-                                satStatus === 'connected' ? 'border-green-500/50 shadow-[0_0_50px_rgba(74,222,128,0.3)]' : 
-                                satStatus === 'connecting' ? 'border-white/50 shadow-[0_0_50px_rgba(255,255,255,0.2)]' :
-                                'border-white/10'
-                            }`}>
-                                <div className={`absolute inset-0 rounded-full ${
-                                    satStatus === 'connected' ? 'bg-green-500/10' : 
-                                    satStatus === 'connecting' ? 'bg-white/10' :
-                                    'bg-red-500/10'
-                                    } animate-pulse`}></div>
-                                <Globe size={48} className={`relative z-10 transition-colors duration-500 ${
-                                    satStatus === 'connected' ? 'text-green-400' : 
-                                    satStatus === 'ready' ? 'text-orange-500' : 
-                                    satStatus === 'connecting' ? 'text-white' :
-                                    'text-neutral-600'
-                                    }`} strokeWidth={1.5} />
+                                <div className="absolute inset-0 border border-white/5 rounded-full" /><div className="absolute inset-12 border border-white/5 rounded-full" /><div className="absolute inset-24 border border-white/5 rounded-full" />
+                                {satStatus === 'connected' && (<svg className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-visible"><line x1="50%" y1="50%" x2="50%" y2="8%" stroke="#4ade80" strokeWidth="2" strokeDasharray="6,4" strokeOpacity="0.6" className="animate-dash" /><line x1="50%" y1="50%" x2="85%" y2="82%" stroke="#4ade80" strokeWidth="2" strokeDasharray="6,4" strokeOpacity="0.6" className="animate-dash" /></svg>)}
+                                <div className={`absolute w-full h-full rounded-full bg-gradient-to-t from-transparent via-transparent ${satStatus === 'connected' ? 'opacity-0' : satStatus === 'ready' ? 'to-orange-500/20' : satStatus === 'connecting' ? 'to-white/30 duration-[0.5s]' : 'to-blue-500/20'} ${satStatus === 'connecting' ? 'animate-spin duration-700' : 'animate-spin'} transition-all`} style={{clipPath: 'polygon(50% 50%, 0 0, 100% 0)'}}></div>
+                                {satStatus === 'connected' && (<><div className="absolute inset-0 rounded-full border border-green-500/30 animate-ripple"></div><div className="absolute inset-12 rounded-full border border-green-500/30 animate-ripple" style={{animationDelay: '0.5s'}}></div></>)}
+                                <div className={`w-24 h-24 bg-neutral-900 rounded-full flex items-center justify-center shadow-[0_0_60px_rgba(59,130,246,0.2)] z-10 border relative transition-all duration-500 ${satStatus === 'connected' ? 'border-green-500/50 shadow-[0_0_50px_rgba(74,222,128,0.3)]' : satStatus === 'connecting' ? 'border-white/50 shadow-[0_0_50px_rgba(255,255,255,0.2)]' : 'border-white/10'}`}><div className={`absolute inset-0 rounded-full ${satStatus === 'connected' ? 'bg-green-500/10' : satStatus === 'connecting' ? 'bg-white/10' : 'bg-red-500/10'} animate-pulse`}></div><Globe size={48} className={`relative z-10 transition-colors duration-500 ${satStatus === 'connected' ? 'text-green-400' : satStatus === 'ready' ? 'text-orange-500' : satStatus === 'connecting' ? 'text-white' : 'text-neutral-600'}`} strokeWidth={1.5} /></div>
+                                {(satStatus === 'connected' || satStatus === 'ready' || satStatus === 'connecting') && (<><div className={`absolute top-4 left-1/2 -translate-x-1/2 flex items-center justify-center transition-all duration-500 ${satStatus === 'connected' ? 'scale-110' : 'scale-100'}`}>{satStatus === 'connected' && <div className="absolute w-8 h-8 border border-green-500/50 rounded-full animate-ping opacity-75"></div>}<div className={`w-3 h-3 rounded-full shadow-[0_0_10px_currentColor] z-20 transition-colors duration-500 ${satStatus === 'connected' ? 'bg-green-400 text-green-400' : satStatus === 'connecting' ? 'bg-white text-white' : 'bg-orange-500 text-orange-500'}`} /></div><div className={`absolute bottom-12 right-8 flex items-center justify-center transition-all duration-500 ${satStatus === 'connected' ? 'scale-110' : 'scale-100'}`}>{satStatus === 'connected' && <div className="absolute w-6 h-6 border border-green-500/50 rounded-full animate-ping opacity-75"></div>}<div className={`w-2 h-2 rounded-full z-20 transition-colors duration-500 ${satStatus === 'connected' ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)]' : satStatus === 'connecting' ? 'bg-white' : 'bg-orange-500/50'}`} /></div></>)}
                             </div>
-
-                            {/* Satellite Dots */}
-                            {(satStatus === 'connected' || satStatus === 'ready' || satStatus === 'connecting') && (
-                                <>
-                                    <div className={`absolute top-4 left-1/2 -translate-x-1/2 flex items-center justify-center transition-all duration-500 ${satStatus === 'connected' ? 'scale-110' : 'scale-100'}`}>
-                                        {satStatus === 'connected' && <div className="absolute w-8 h-8 border border-green-500/50 rounded-full animate-ping opacity-75"></div>}
-                                        <div className={`w-3 h-3 rounded-full shadow-[0_0_10px_currentColor] z-20 transition-colors duration-500 ${
-                                            satStatus === 'connected' ? 'bg-green-400 text-green-400' : 
-                                            satStatus === 'connecting' ? 'bg-white text-white' :
-                                            'bg-orange-500 text-orange-500'}`} 
-                                        />
-                                    </div>
-
-                                    <div className={`absolute bottom-12 right-8 flex items-center justify-center transition-all duration-500 ${satStatus === 'connected' ? 'scale-110' : 'scale-100'}`}>
-                                        {satStatus === 'connected' && <div className="absolute w-6 h-6 border border-green-500/50 rounded-full animate-ping opacity-75"></div>}
-                                        <div className={`w-2 h-2 rounded-full z-20 transition-colors duration-500 ${
-                                            satStatus === 'connected' ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)]' : 
-                                            satStatus === 'connecting' ? 'bg-white' :
-                                            'bg-orange-500/50'}`} 
-                                        />
-                                    </div>
-                                </>
-                            )}
-                            </div>
-
-                            {/* STATS PANEL */}
                             <div className={`w-full bg-neutral-800/30 backdrop-blur-md rounded-[32px] p-5 grid grid-cols-2 gap-3 transition-all duration-700 border border-white/5 ${satStatus !== 'searching' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-                            <div className="col-span-2 flex items-center justify-between pb-3 border-b border-white/5 mb-1">
-                                <div className="flex items-center gap-2">
-                                    <Activity className={`${satStatus === 'connected' ? 'text-green-400' : satStatus === 'connecting' ? 'text-white' : 'text-orange-500'}`} size={16} />
-                                    <span className="font-medium text-sm text-neutral-300">Ping</span>
-                                </div>
-                                <span className={`text-lg font-bold font-mono ${satStatus === 'connected' ? 'text-green-400' : satStatus === 'connecting' ? 'text-white' : 'text-orange-500'}`}>
-                                    {satStatus === 'connecting' ? '...' : `${Math.floor(ping)} ms`}
-                                </span>
+                                <div className="col-span-2 flex items-center justify-between pb-3 border-b border-white/5 mb-1"><div className="flex items-center gap-2"><Activity className={`${satStatus === 'connected' ? 'text-green-400' : satStatus === 'connecting' ? 'text-white' : 'text-orange-500'}`} size={16} /><span className="font-medium text-sm text-neutral-300">Ping</span></div><span className={`text-lg font-bold font-mono ${satStatus === 'connected' ? 'text-green-400' : satStatus === 'connecting' ? 'text-white' : 'text-orange-500'}`}>{satStatus === 'connecting' ? '...' : `${Math.floor(ping)} ms`}</span></div>
+                                <div className="bg-neutral-900/40 p-3 rounded-2xl flex flex-col items-center text-center transition-all duration-300 border border-transparent hover:border-white/5"><span className="text-[10px] font-bold text-neutral-500 mb-1 flex items-center justify-center gap-1 w-full tracking-wider">DOWNLOAD</span><span className={`text-xl font-bold font-mono ${satStatus === 'connected' ? 'text-white' : 'text-neutral-400'}`}>{satStatus === 'connecting' ? '...' : Math.floor(downloadSpeed)}</span><span className="text-[10px] text-neutral-500">Mbps</span></div>
+                                <div className="bg-neutral-900/40 p-3 rounded-2xl flex flex-col items-center text-center transition-all duration-300 border border-transparent hover:border-white/5"><span className="text-[10px] font-bold text-neutral-500 mb-1 flex items-center justify-center gap-1 w-full tracking-wider">UPLOAD</span><span className={`text-xl font-bold font-mono ${satStatus === 'connected' ? 'text-white' : 'text-neutral-400'}`}>{satStatus === 'connecting' ? '...' : Math.floor(uploadSpeed)}</span><span className="text-[10px] text-neutral-500">Mbps</span></div>
                             </div>
-
-                            <div className="bg-neutral-900/40 p-3 rounded-2xl flex flex-col items-center text-center transition-all duration-300 border border-transparent hover:border-white/5">
-                                <span className="text-[10px] font-bold text-neutral-500 mb-1 flex items-center justify-center gap-1 w-full tracking-wider">DOWNLOAD</span>
-                                <span className={`text-xl font-bold font-mono ${satStatus === 'connected' ? 'text-white' : 'text-neutral-400'}`}>
-                                    {satStatus === 'connecting' ? '...' : Math.floor(downloadSpeed)}
-                                </span>
-                                <span className="text-[10px] text-neutral-500">Mbps</span>
-                            </div>
-                            
-                            <div className="bg-neutral-900/40 p-3 rounded-2xl flex flex-col items-center text-center transition-all duration-300 border border-transparent hover:border-white/5">
-                                <span className="text-[10px] font-bold text-neutral-500 mb-1 flex items-center justify-center gap-1 w-full tracking-wider">UPLOAD</span>
-                                <span className={`text-xl font-bold font-mono ${satStatus === 'connected' ? 'text-white' : 'text-neutral-400'}`}>
-                                    {satStatus === 'connecting' ? '...' : Math.floor(uploadSpeed)}
-                                </span>
-                                <span className="text-[10px] text-neutral-500">Mbps</span>
-                            </div>
-                            </div>
-
-                            {/* CONNECT BUTTON */}
                             <div className={`w-full mt-8 transition-all duration-500 ${satStatus !== 'searching' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-                                <button 
-                                    onClick={handleConnectClick}
-                                    disabled={satStatus === 'connected' || satStatus === 'connecting'}
-                                    className={`h-12 w-full rounded-full font-bold transition-all duration-300 flex items-center justify-center gap-2
-                                        ${satStatus === 'connected' 
-                                            ? 'bg-green-500 text-black shadow-[0_0_30px_rgba(34,197,94,0.4)] scale-100 cursor-default' 
-                                            : satStatus === 'connecting'
-                                            ? 'bg-neutral-800 text-neutral-400 cursor-wait'
-                                            : 'bg-white text-black hover:bg-neutral-200 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]'
-                                        }
-                                    `}
-                                >
-                                    {satStatus === 'connected' ? (
-                                        <React.Fragment>
-                                            <Wifi size={18} />
-                                            Connected
-                                        </React.Fragment>
-                                    ) : satStatus === 'connecting' ? (
-                                        <React.Fragment>
-                                            <Loader2 size={18} className="animate-spin" />
-                                            Connecting...
-                                        </React.Fragment>
-                                    ) : 'Connect'}
+                                <button onClick={handleConnectClick} disabled={satStatus === 'connected' || satStatus === 'connecting'} className={`h-12 w-full rounded-full font-bold transition-all duration-300 flex items-center justify-center gap-2 ${satStatus === 'connected' ? 'bg-green-500 text-black shadow-[0_0_30px_rgba(34,197,94,0.4)] scale-100 cursor-default' : satStatus === 'connecting' ? 'bg-neutral-800 text-neutral-400 cursor-wait' : 'bg-white text-black hover:bg-neutral-200 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]'}`}>
+                                    {satStatus === 'connected' ? (<React.Fragment><Wifi size={18} />Connected</React.Fragment>) : satStatus === 'connecting' ? (<React.Fragment><Loader2 size={18} className="animate-spin" />Connecting...</React.Fragment>) : 'Connect'}
                                 </button>
                             </div>
-
                         </div>
                     </div>
+                    
+                    {/* Bottom Close Handle (Visible only when no overlay) */}
+                    {!satelliteViewOpen && (
+                        <div 
+                            className="absolute bottom-2 left-0 right-0 h-10 flex flex-col items-center justify-end pb-2 z-40 opacity-50 cursor-pointer"
+                            onClick={onClose}
+                        >
+                            <ChevronUp size={24} className="animate-bounce" />
+                        </div>
+                    )}
                 </div>
-                </div>
-            );
+            )
         };
 
         const SmallToggle = ({ active, onClick, icon, activeColor, inactiveColor }) => {
             return (
-                <button 
-                    onClick={onClick}
-                    className={`w-full h-full rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 ${active ? activeColor + ' text-white' : inactiveColor + ' text-neutral-400'}`}
-                >
-                    {icon}
-                </button>
+                <button onClick={onClick} className={`w-full h-full rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 ${active ? activeColor + ' text-white' : inactiveColor + ' text-neutral-400'}`}>{icon}</button>
             )
         }
+
+        // --- MAIN APP COMPONENT (Wallpaper + Gesture Logic) ---
+        const SatelliteApp = () => {
+            const [isOpen, setIsOpen] = useState(false);
+            const [touchStart, setTouchStart] = useState(null);
+            const [touchEnd, setTouchEnd] = useState(null);
+
+            const onTouchStart = (e) => {
+                setTouchEnd(null);
+                setTouchStart(e.targetTouches[0].clientY);
+            }
+
+            const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientY);
+
+            const onTouchEnd = () => {
+                if (!touchStart || !touchEnd) return;
+                const distance = touchStart - touchEnd;
+                const minSwipe = 50;
+
+                // Swipe Down (Start < End) = Open
+                // Swipe Up (Start > End) = Close
+                
+                // Note: clientY grows downwards. 
+                // Swipe Down: Start Y (small) -> End Y (large). Dist = Start - End (Negative)
+                // Swipe Up: Start Y (large) -> End Y (small). Dist = Start - End (Positive)
+
+                if (distance < -minSwipe) {
+                    // Swiped Down
+                    setIsOpen(true);
+                }
+                
+                if (distance > minSwipe) {
+                    // Swiped Up
+                    setIsOpen(false);
+                }
+            }
+
+            return (
+                <div 
+                    className="relative w-full h-[100dvh] overflow-hidden bg-black"
+                    onTouchStart={onTouchStart} 
+                    onTouchMove={onTouchMove} 
+                    onTouchEnd={onTouchEnd}
+                >
+                    {/* 1. Wallpaper (Main Screen) */}
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-500 z-0"
+                        style={{ 
+                            backgroundImage: "url('https://i.postimg.cc/RV8BTMMj/photo-2025-12-04-20-03-22.jpg')",
+                            transform: isOpen ? 'scale(0.95) brightness(0.5)' : 'scale(1) brightness(1)'
+                        }}
+                    >
+                        {/* Status Bar removed as requested */}
+                    </div>
+
+                    {/* 2. Control Center Curtain (Hidden by default) */}
+                    <div 
+                        className={`absolute inset-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
+                            ${isOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}
+                        `}
+                    >
+                        {/* Background Blur for Control Center */}
+                        <div className="absolute inset-0 bg-neutral-900/60 backdrop-blur-3xl"></div>
+                        
+                        {/* Actual Control Center Content */}
+                        <ControlCenterContent onClose={() => setIsOpen(false)} />
+                    </div>
+
+                    {/* 3. Hint Handle (Visible on Wallpaper) */}
+                    {!isOpen && (
+                        <div className="absolute top-2 left-0 right-0 h-8 flex justify-center items-start z-40 opacity-60">
+                            <div className="w-12 h-1.5 bg-white/50 rounded-full shadow-sm backdrop-blur-sm"></div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
         const root = createRoot(document.getElementById('root'));
         root.render(<SatelliteApp />);
