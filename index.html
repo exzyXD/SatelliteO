@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Added viewport-fit=cover for full screen on iPhone with notch -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Satellite Control Center</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Babel for JSX (enables modern imports in browser) -->
+    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Custom Scrollbar hide */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -21,11 +21,8 @@
             scrollbar-width: none;
         }
         
-        /* Animation Keyframes */
         @keyframes dash {
-          to {
-            stroke-dashoffset: -20;
-          }
+          to { stroke-dashoffset: -20; }
         }
         .animate-dash {
           animation: dash 1s linear infinite;
@@ -38,23 +35,20 @@
           animation: ripple 2s infinite ease-out;
         }
         
-        /* Prevent pull-to-refresh on mobile */
         body {
             overscroll-behavior-y: contain;
-            touch-action: none; /* Helps with custom gestures */
+            touch-action: none;
+            background-color: black;
         }
     </style>
 </head>
-<body class="bg-black text-white m-0 p-0 overflow-hidden">
+<body class="bg-black text-white m-0 p-0 overflow-hidden h-[100dvh] w-screen">
 
-    <div id="root"></div>
+    <div id="root" class="h-full w-full"></div>
 
-    <!-- type="text/babel" with data-type="module" allows using imports directly -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
-        
-        // Import icons specifically from lucide-react via esm.sh
         import { 
             Wifi, Plane, Bluetooth, Share2, Music, Play, SkipForward, SkipBack, 
             Sun, Volume2, Satellite, Globe, Activity, ArrowUp, ArrowDown, X, 
@@ -62,31 +56,29 @@
             RotateCw, Focus, Loader2, ChevronUp 
         } from 'https://esm.sh/lucide-react@0.292.0';
 
-        // --- INTERNAL COMPONENT: The Control Center Content ---
         const ControlCenterContent = ({ onClose }) => {
             const [time, setTime] = useState(new Date());
             
-            // State for toggles
+            // Toggles
             const [airplaneMode, setAirplaneMode] = useState(false);
             const [wifi, setWifi] = useState(true);
             const [bluetooth, setBluetooth] = useState(true);
-            
             const [rotationLock, setRotationLock] = useState(true); 
             const [flashlight, setFlashlight] = useState(false);
             const [recording, setRecording] = useState(false);
             
-            // Satellite specific logic
+            // Satellite Logic
             const [satelliteViewOpen, setSatelliteViewOpen] = useState(false);
-            
-            // Statuses: 'disconnected' -> 'searching' -> 'ready' (bad net) -> 'connecting' (loading) -> 'connected' (good net)
             const [satStatus, setSatStatus] = useState('disconnected'); 
             const [connectionStep, setConnectionStep] = useState(''); 
             
+            // Data Stats
             const [signalStrength, setSignalStrength] = useState(0);
             const [downloadSpeed, setDownloadSpeed] = useState(0);
             const [uploadSpeed, setUploadSpeed] = useState(0);
             const [ping, setPing] = useState(0);
             
+            // Sliders
             const [brightness, setBrightness] = useState(50);
             const [volume, setVolume] = useState(75);
 
@@ -95,7 +87,7 @@
                 return () => clearInterval(timer);
             }, []);
 
-            // Simulation Logic (same as before)
+            // Search Simulation
             useEffect(() => {
                 let interval;
                 if (satelliteViewOpen && satStatus === 'searching') {
@@ -113,6 +105,7 @@
                 return () => clearInterval(interval);
             }, [satelliteViewOpen, satStatus]);
 
+            // Connection Steps
             useEffect(() => {
                 if (satStatus === 'connecting') {
                     setConnectionStep("Authenticating Device...");
@@ -123,6 +116,7 @@
                 }
             }, [satStatus]);
 
+            // Traffic Simulation
             useEffect(() => {
                 let interval;
                 if (satStatus === 'ready') {
@@ -149,8 +143,9 @@
 
             return (
                 <div className="w-full h-full flex flex-col relative">
-                    {/* --- MAIN CONTROL CENTER GRID --- */}
-                    <div className={`flex-1 p-4 pt-12 flex flex-col gap-4 transition-transform duration-500 overflow-y-auto no-scrollbar ${satelliteViewOpen ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}>
+                    {/* --- CONTROL CENTER GRID --- */}
+                    {/* Increased top padding (pt-14) for iPhone notch safety */}
+                    <div className={`flex-1 p-4 pt-14 flex flex-col gap-4 transition-transform duration-500 overflow-y-auto no-scrollbar ${satelliteViewOpen ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}>
                         {/* ROW 1 */}
                         <div className="grid grid-cols-4 gap-4 h-40 shrink-0">
                             <div className="col-span-2 bg-neutral-800/60 backdrop-blur-2xl rounded-[28px] p-3 grid grid-cols-2 gap-3 shadow-lg border border-white/5">
@@ -197,9 +192,10 @@
 
                     {/* --- SATELLITE INTERFACE OVERLAY --- */}
                     <div className={`absolute inset-0 bg-black/95 backdrop-blur-3xl z-50 transition-all duration-500 flex flex-col ${satelliteViewOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}>
+                        {/* Close Button - Positioned safely below notch */}
                         <div className="pt-14 px-6 flex justify-end"><button onClick={() => setSatelliteViewOpen(false)} className="w-9 h-9 bg-neutral-800 rounded-full flex items-center justify-center text-neutral-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button></div>
                         <div className="flex-1 flex flex-col items-center justify-center -mt-10 px-6">
-                            <h2 className="text-2xl font-bold mb-2 tracking-tight text-white min-h-[32px] transition-all duration-300">{satStatus === 'searching' && "Searching Signal"}{satStatus === 'ready' && "Weak Signal Found"}{satStatus === 'connecting' && connectionStep}{satStatus === 'connected' && "High Speed Link"}</h2>
+                            <h2 className="text-2xl font-bold mb-2 tracking-tight text-white min-h-[32px] transition-all duration-300 text-center">{satStatus === 'searching' && "Searching Signal"}{satStatus === 'ready' && "Weak Signal Found"}{satStatus === 'connecting' && connectionStep}{satStatus === 'connected' && "High Speed Link"}</h2>
                             <p className="text-neutral-400 text-sm mb-12 text-center max-w-[250px] leading-relaxed h-10 transition-opacity duration-300">{satStatus === 'searching' && "Calibrating antenna..."}{satStatus === 'ready' && "Connection unstable. Optimization required."}{satStatus === 'connecting' && "Please wait while we establish a secure connection."}{satStatus === 'connected' && "Stable connection established. Maximum throughput."}</p>
                             <div className="relative w-72 h-72 flex items-center justify-center mb-12">
                                 <div className="absolute inset-0 border border-white/5 rounded-full" /><div className="absolute inset-12 border border-white/5 rounded-full" /><div className="absolute inset-24 border border-white/5 rounded-full" />
@@ -222,7 +218,6 @@
                         </div>
                     </div>
                     
-                    {/* Bottom Close Handle (Visible only when no overlay) */}
                     {!satelliteViewOpen && (
                         <div 
                             className="absolute bottom-2 left-0 right-0 h-10 flex flex-col items-center justify-end pb-2 z-40 opacity-50 cursor-pointer"
@@ -241,7 +236,6 @@
             )
         }
 
-        // --- MAIN APP COMPONENT (Wallpaper + Gesture Logic) ---
         const SatelliteApp = () => {
             const [isOpen, setIsOpen] = useState(false);
             const [touchStart, setTouchStart] = useState(null);
@@ -259,32 +253,17 @@
                 const distance = touchStart - touchEnd;
                 const minSwipe = 50;
 
-                // Swipe Down (Start < End) = Open
-                // Swipe Up (Start > End) = Close
-                
-                // Note: clientY grows downwards. 
-                // Swipe Down: Start Y (small) -> End Y (large). Dist = Start - End (Negative)
-                // Swipe Up: Start Y (large) -> End Y (small). Dist = Start - End (Positive)
-
-                if (distance < -minSwipe) {
-                    // Swiped Down
-                    setIsOpen(true);
-                }
-                
-                if (distance > minSwipe) {
-                    // Swiped Up
-                    setIsOpen(false);
-                }
+                if (distance < -minSwipe) setIsOpen(true);
+                if (distance > minSwipe) setIsOpen(false);
             }
 
             return (
                 <div 
-                    className="relative w-full h-[100dvh] overflow-hidden bg-black"
+                    className="relative w-full h-full overflow-hidden bg-black"
                     onTouchStart={onTouchStart} 
                     onTouchMove={onTouchMove} 
                     onTouchEnd={onTouchEnd}
                 >
-                    {/* 1. Wallpaper (Main Screen) */}
                     <div 
                         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-500 z-0"
                         style={{ 
@@ -292,23 +271,17 @@
                             transform: isOpen ? 'scale(0.95) brightness(0.5)' : 'scale(1) brightness(1)'
                         }}
                     >
-                        {/* Status Bar removed as requested */}
                     </div>
 
-                    {/* 2. Control Center Curtain (Hidden by default) */}
                     <div 
                         className={`absolute inset-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
                             ${isOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}
                         `}
                     >
-                        {/* Background Blur for Control Center */}
                         <div className="absolute inset-0 bg-neutral-900/60 backdrop-blur-3xl"></div>
-                        
-                        {/* Actual Control Center Content */}
                         <ControlCenterContent onClose={() => setIsOpen(false)} />
                     </div>
 
-                    {/* 3. Hint Handle (Visible on Wallpaper) */}
                     {!isOpen && (
                         <div className="absolute top-2 left-0 right-0 h-8 flex justify-center items-start z-40 opacity-60">
                             <div className="w-12 h-1.5 bg-white/50 rounded-full shadow-sm backdrop-blur-sm"></div>
